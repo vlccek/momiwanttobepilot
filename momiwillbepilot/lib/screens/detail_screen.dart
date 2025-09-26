@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:momiwillbepilot/components/question_widget.dart';
+import 'package:momiwillbepilot/components/learning_question_widget.dart';
 import 'package:momiwillbepilot/models/question.dart';
 import 'package:momiwillbepilot/services/question_service.dart';
 
@@ -48,22 +48,25 @@ class _DetailScreenState extends State<DetailScreen> {
       appBar: AppBar(
         title: Text(widget.title),
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: QuestionWidget(
-          key: ValueKey(currentQuestion.text),
-          question: currentQuestion,
-          onAnswered: (isCorrect) {
-            QuestionService.recordAnswer(currentQuestion.id, isCorrect);
-            if (isCorrect) {
-              QuestionService.removeIncorrectlyAnsweredQuestionId(currentQuestion.id);
-              _moveToNextQuestion();
-            } else {
-              // If incorrect, QuestionWidget will show explanation and its own 'Next Question' button.
-              // The 'Next Question' button will call onNextQuestion.
-            }
-          },
-          onNextQuestion: _moveToNextQuestion,
+      body: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: LearningQuestionWidget(
+            key: ValueKey(currentQuestion.text),
+            question: currentQuestion,
+            onAnswered: (selectedIndex) {
+              final isCorrect = selectedIndex == currentQuestion.correctAnswerIndex;
+              QuestionService.recordAnswer(currentQuestion.id, isCorrect);
+              if (isCorrect) {
+                QuestionService.removeIncorrectlyAnsweredQuestionId(currentQuestion.id);
+                _moveToNextQuestion();
+              } else {
+                // If incorrect, QuestionWidget will show explanation and its own \'Next Question\' button.
+                // The \'Next Question\' button will call onNextQuestion.
+              }
+            },
+            onNextQuestion: _moveToNextQuestion,
+          ),
         ),
       ),
     );

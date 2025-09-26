@@ -6,6 +6,7 @@ import 'package:momiwillbepilot/screens/settings_screen.dart';
 import 'package:momiwillbepilot/screens/statistics_screen.dart';
 import 'package:momiwillbepilot/services/question_service.dart'; // Import QuestionService
 import 'package:momiwillbepilot/models.dart'; // This seems to be for CardItem and OptionItem
+import 'package:momiwillbepilot/screens/test_screen.dart';
 
 void main() {
   runApp(const MyApp());
@@ -60,14 +61,6 @@ class _MyHomePageState extends State<MyHomePage> {
     }
   }
 
-  static final List<Widget> _widgetOptions = <Widget>[
-    // UceniScreen(), // This will be replaced
-    const Text(
-      'Testy',
-    ),
-    const StatisticsScreen(),
-  ];
-
   void _onItemTapped(int index) {
     setState(() {
       _selectedIndex = index;
@@ -76,6 +69,12 @@ class _MyHomePageState extends State<MyHomePage> {
 
   @override
   Widget build(BuildContext context) {
+    final List<Widget> screens = [
+      UceniScreen(questions: _questions),
+      TestScreen(questions: _questions),
+      const StatisticsScreen(),
+    ];
+
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
@@ -92,9 +91,10 @@ class _MyHomePageState extends State<MyHomePage> {
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : _selectedIndex == 0
-              ? UceniScreen(questions: _questions) // Pass questions to UceniScreen
-              : _widgetOptions.elementAt(_selectedIndex - 1), // Adjust index for other screens,
+          : IndexedStack(
+              index: _selectedIndex,
+              children: screens,
+            ),
       bottomNavigationBar: BottomNavigationBar(
         items: const <BottomNavigationBarItem>[
           BottomNavigationBarItem(
@@ -117,6 +117,7 @@ class _MyHomePageState extends State<MyHomePage> {
     );
   }
 }
+
 
 class UceniScreen extends StatefulWidget {
   final List<Question> questions;

@@ -1,28 +1,42 @@
 import 'package:flutter/material.dart';
 import 'package:momiwillbepilot/models/question.dart';
 
-class QuestionWidget extends StatefulWidget {
-  const QuestionWidget({
+class LearningQuestionWidget extends StatefulWidget {
+  const LearningQuestionWidget({
     super.key,
     required this.question,
-    required this.onAnswered,
-    this.onNextQuestion, // Add this
+    this.onAnswered,
+    this.onNextQuestion,
+    this.interactive = true,
+    this.initialAnswerIndex,
   });
 
   final Question question;
-  final Function(bool isCorrect) onAnswered;
-  final VoidCallback? onNextQuestion; // Add this
+  final Function(int selectedIndex)? onAnswered;
+  final VoidCallback? onNextQuestion;
+  final bool interactive;
+  final int? initialAnswerIndex;
 
   @override
-  State<QuestionWidget> createState() => _QuestionWidgetState();
+  State<LearningQuestionWidget> createState() => _LearningQuestionWidgetState();
 }
 
-class _QuestionWidgetState extends State<QuestionWidget> {
+class _LearningQuestionWidgetState extends State<LearningQuestionWidget> {
   int? _selectedAnswerIndex;
   bool _answered = false;
 
   @override
+  void initState() {
+    super.initState();
+    _selectedAnswerIndex = widget.initialAnswerIndex;
+    _answered = _selectedAnswerIndex != null;
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final bool isIncorrectlyAnswered = _selectedAnswerIndex != null &&
+        _selectedAnswerIndex != widget.question.correctAnswerIndex;
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -30,7 +44,7 @@ class _QuestionWidgetState extends State<QuestionWidget> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              widget.question.text,
+              '${widget.question.text} (${widget.question.points} b.)',
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 16),
@@ -41,48 +55,49 @@ class _QuestionWidgetState extends State<QuestionWidget> {
               final isCorrectOption = index == widget.question.correctAnswerIndex;
 
               Color? tileColor;
-              if (_answered) {
+              if (_answered || !widget.interactive) {
                 if (isCorrectOption) {
                   tileColor = Colors.green.shade100;
                 } else if (isSelected) {
                   tileColor = Colors.red.shade100;
                 }
-              } else if (isSelected) {
-                tileColor = Colors.blue.shade100;
               }
-
 
               return ListTile(
                 tileColor: tileColor,
                 title: Text(option),
-                onTap: _answered
-                    ? null
-                    : () {
+                onTap: (widget.interactive && !_answered)
+                    ? () {
                         setState(() {
                           _selectedAnswerIndex = index;
                           _answered = true;
                         });
-                        final bool isCorrect = index == widget.question.correctAnswerIndex;
-                        widget.onAnswered(isCorrect);
-                      },
+                        if (widget.onAnswered != null) {
+                          widget.onAnswered!(index);
+                        }
+                      }
+                    : null,
               );
             }),
-            if (_answered && _selectedAnswerIndex != widget.question.correctAnswerIndex)
+            if ((_answered || !widget.interactive) && isIncorrectlyAnswered)
               Padding(
                 padding: const EdgeInsets.only(top: 16.0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Explanation:',
+                      'Vysvětlení:',
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
                     Text(widget.question.explanation),
-                    const SizedBox(height: 16),
-                    ElevatedButton(
-                      onPressed: widget.onNextQuestion, // Use the new callback
-                      child: const Text('Next Question'),
-                    ),
+                    if (widget.interactive)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 16.0),
+                        child: ElevatedButton(
+                          onPressed: widget.onNextQuestion,
+                          child: const Text('Další otázka'),
+                        ),
+                      ),
                   ],
                 ),
               ),
