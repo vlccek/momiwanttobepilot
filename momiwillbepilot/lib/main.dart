@@ -1,5 +1,9 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:momiwillbepilot/screens/detail_screen.dart';
+import 'package:momiwillbepilot/screens/settings_screen.dart';
+import 'package:momiwillbepilot/screens/statistics_screen.dart';
 import 'package:momiwillbepilot/services/question_service.dart'; // Import QuestionService
 import 'package:momiwillbepilot/models.dart'; // This seems to be for CardItem and OptionItem
 
@@ -49,21 +53,19 @@ class _MyHomePageState extends State<MyHomePage> {
       });
     } catch (e) {
       // Handle error, e.g., show a snackbar or an error message
-      print('Error loading questions: $e');
+      // print('Error loading questions: $e');
       setState(() {
         _isLoading = false;
       });
     }
   }
 
-  static const List<Widget> _widgetOptions = <Widget>[
+  static final List<Widget> _widgetOptions = <Widget>[
     // UceniScreen(), // This will be replaced
-    Text(
+    const Text(
       'Testy',
     ),
-    Text(
-      'Statistiky',
-    ),
+    const StatisticsScreen(),
   ];
 
   void _onItemTapped(int index) {
@@ -77,15 +79,22 @@ class _MyHomePageState extends State<MyHomePage> {
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        title: const Text('Momiwillbepilot'),
+        title: const Text('Momiwillbepilot (Beta)'),
+        leading: IconButton(
+          icon: const Icon(Icons.settings),
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const SettingsScreen()),
+            );
+          },
+        ),
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : Center(
-              child: _selectedIndex == 0
-                  ? UceniScreen(questions: _questions) // Pass questions to UceniScreen
-                  : _widgetOptions.elementAt(_selectedIndex - 1), // Adjust index for other screens
-            ),
+          : _selectedIndex == 0
+              ? UceniScreen(questions: _questions) // Pass questions to UceniScreen
+              : _widgetOptions.elementAt(_selectedIndex - 1), // Adjust index for other screens,
       bottomNavigationBar: BottomNavigationBar(
         items: const <BottomNavigationBarItem>[
           BottomNavigationBarItem(
@@ -109,46 +118,54 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 }
 
-// UceniScreen needs to be updated to accept questions
-class UceniScreen extends StatelessWidget {
-  final List<Question> questions; // Add this
-  const UceniScreen({super.key, required this.questions}); // Add this
+class UceniScreen extends StatefulWidget {
+  final List<Question> questions;
+  const UceniScreen({super.key, required this.questions});
 
-  final List<CardItem> cardItems = const [
-    CardItem(id: 'vsechny-otazky', title: 'Všechny otázky'),
-    CardItem(
-      id: 'dynamicke-kategorie',
-      title: 'Dynamické kategorie',
-      options: [
-        OptionItem(id: 'nezname-otazky', title: 'Neznáme otázky'),
-        OptionItem(id: 'potizisti', title: 'Potížišti'),
-        OptionItem(id: 'oznacene', title: 'Označené'),
-      ],
-    ),
-    CardItem(
-      id: 'body-kategorie',
-      title: 'Bodové kategorie',
-      options: [
-        OptionItem(id: '3-body', title: '3 bodové otázky'),
-        OptionItem(id: '1-bod', title: '1 bodové otázky'),
-      ],
-    ),
-    CardItem(
-      id: 'podle-tematu',
-      title: 'Podle tématu',
-      options: [
-        OptionItem(id: 'letecke-predpisy', title: 'Letecké předpisy'),
-        OptionItem(id: 'lidska-vykonnost', title: 'Lidská výkonnost'),
-        OptionItem(id: 'meteorologie', title: 'Meteorologie'),
-        OptionItem(id: 'navigace', title: 'Navigace'),
-        OptionItem(id: 'provozni-postupy', title: 'Provozní postupy'),
-        OptionItem(id: 'letove-vykony-a-planovani', title: 'Letové výkony a plánování'),
-        OptionItem(id: 'znalosti-letadel', title: 'Znalosti letadel'),
-        OptionItem(id: 'principy-letu', title: 'Principy letu'),
-        OptionItem(id: 'radiokomunikace', title: 'Radiokomunikace'),
-      ],
-    ),
-  ];
+  @override
+  State<UceniScreen> createState() => _UceniScreenState();
+}
+
+class _UceniScreenState extends State<UceniScreen> {
+  List<Question> _shuffledQuestions = [];
+  int _neznameCount = 0;
+  int _potizistiCount = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _prepareQuestions();
+    _calculateDynamicCategoryCounts();
+  }
+
+  Future<void> _calculateDynamicCategoryCounts() async {
+    final answeredIds = await QuestionService.getAnsweredQuestionIds();
+    final incorrectlyAnsweredIds = await QuestionService.getIncorrectlyAnsweredQuestionIds();
+    if (mounted) {
+      setState(() {
+        _neznameCount = widget.questions.where((q) => !answeredIds.contains(q.id)).length;
+        _potizistiCount = widget.questions.where((q) => incorrectlyAnsweredIds.contains(q.id)).length;
+      });
+    }
+  }
+
+  Future<void> _prepareQuestions() async {
+    final incorrectlyAnsweredIds = await QuestionService.getIncorrectlyAnsweredQuestionIds();
+    final weightedQuestions = <Question>[];
+
+    for (var q in widget.questions) {
+      weightedQuestions.add(q);
+      if (incorrectlyAnsweredIds.contains(q.id)) {
+        // Add incorrectly answered questions 2 more times to increase their weight
+        weightedQuestions.add(q);
+        weightedQuestions.add(q);
+      }
+    }
+
+    setState(() {
+      _shuffledQuestions = weightedQuestions.toList()..shuffle(Random());
+    });
+  }
 
   IconData _getIconForTitle(String title) {
     switch (title) {
@@ -183,22 +200,70 @@ class UceniScreen extends StatelessWidget {
     }
   }
 
+  void _navigateToDetailScreen(
+      String id, String title, List<Question> questions) {
+    if (questions.isNotEmpty) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => DetailScreen(
+            id: id,
+            title: title,
+            questions: questions,
+          ),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final List<CardItem> cardItems = [
+      const CardItem(id: 'vsechny-otazky', title: 'Všechny otázky'),
+      CardItem(
+        id: 'dynamicke-kategorie',
+        title: 'Dynamické kategorie',
+        options: [
+          OptionItem(id: 'nezname-otazky', title: 'Neznáme otázky'),
+          OptionItem(id: 'potizisti', title: 'Potížišti'),
+          OptionItem(id: 'oznacene', title: 'Označené'),
+        ],
+      ),
+      CardItem(
+        id: 'body-kategorie',
+        title: 'Bodové kategorie',
+        options: [
+          OptionItem(id: '3-body', title: '3 bodové otázky'),
+          OptionItem(id: '1-bod', title: '1 bodové'),
+        ],
+      ),
+    ];
+
+    final uniqueCategories = widget.questions.map((q) => q.category).toSet().toList();
+    final thematicCardItem = CardItem(
+      id: 'podle-tematu',
+      title: 'Podle tématu',
+      options: uniqueCategories
+          .map((category) => OptionItem(id: category, title: category))
+          .toList(),
+    );
+
+    final allCardItems = [...cardItems, thematicCardItem];
+
     return ListView.builder(
       padding: const EdgeInsets.all(8.0),
-      itemCount: cardItems.length,
+      itemCount: allCardItems.length,
       itemBuilder: (context, index) {
-        final item = cardItems[index];
+        final item = allCardItems[index];
         if (item.options.isEmpty) {
           return Card(
             child: InkWell(
               onTap: () {
                 List<Question> filteredQuestions;
                 if (item.id == 'vsechny-otazky') {
-                  filteredQuestions = questions;
+                  filteredQuestions = _shuffledQuestions;
                 } else {
-                  filteredQuestions = questions.where((q) => q.category == item.title).toList();
+                  filteredQuestions = _shuffledQuestions.where((q) => q.category == item.title).toList();
                 }
 
                 if (filteredQuestions.isNotEmpty) {
@@ -210,11 +275,11 @@ class UceniScreen extends StatelessWidget {
               },
               child: ListTile(
                 leading: Icon(_getIconForTitle(item.title)),
-                title: Text(item.title),
+                title: Text('${item.title} (${widget.questions.length})'),
               ),
             ),
           );
-        }  else {
+        } else {
           return Card(
             child: Padding(
               padding: const EdgeInsets.all(8.0),
@@ -224,22 +289,67 @@ class UceniScreen extends StatelessWidget {
                   Text(item.title, style: Theme.of(context).textTheme.titleLarge),
                   const SizedBox(height: 8),
                   ...item.options.map(
-                    (option) => InkWell(
-                      onTap: () {
-                        final filteredQuestions = questions.where((q) => q.category == option.title).toList();
+                        (option) {
+                      int count = 0;
+                      if (option.id == 'nezname-otazky') {
+                        count = _neznameCount;
+                      } else if (option.id == 'potizisti') {
+                        count = _potizistiCount;
+                      } else if (option.id == 'oznacene') {
+                        count = 0; // TODO: Implement marked questions
+                      } else if (option.id == '3-body') {
+                        count = widget.questions.where((q) => q.points == 3).length;
+                      } else if (option.id == '1-bod') {
+                        count = widget.questions.where((q) => q.points == 1).length;
+                      } else {
+                        count = widget.questions.where((q) => q.category == option.title).length;
+                      }
+                      return InkWell(
+                        onTap: () async {
+                          List<Question> filteredQuestions = [];
+                          if (option.id == 'nezname-otazky') {
+                            final answeredIds =
+                            await QuestionService.getAnsweredQuestionIds();
+                            if (!mounted) return;
+                            filteredQuestions = widget.questions
+                                .where((q) => !answeredIds.contains(q.id))
+                                .toList();
+                            filteredQuestions.shuffle(Random());
+                          } else if (option.id == 'potizisti') {
+                            final incorrectlyAnsweredIds = await QuestionService
+                                .getIncorrectlyAnsweredQuestionIds();
+                            if (!mounted) return;
+                            filteredQuestions = widget.questions
+                                .where((q) => incorrectlyAnsweredIds.contains(q.id))
+                                .toList();
+                            filteredQuestions.shuffle(Random());
+                          } else if (option.id == 'oznacene') {
+                            // TODO: Implement marked questions
+                          } else if (option.id == '3-body') {
+                            filteredQuestions = _shuffledQuestions
+                                .where((q) => q.points == 3)
+                                .toList();
+                          } else if (option.id == '1-bod') {
+                            filteredQuestions = _shuffledQuestions
+                                .where((q) => q.points == 1)
+                                .toList();
+                          } else {
+                            filteredQuestions = _shuffledQuestions
+                                .where((q) => q.category == option.title)
+                                .toList();
+                          }
 
-                        if (filteredQuestions.isNotEmpty) {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (context) => DetailScreen(id: option.id, title: option.title, questions: filteredQuestions)),
-                          );
-                        }
-                      },
-                      child: ListTile(
-                        leading: Icon(_getIconForTitle(option.title)),
-                        title: Text(option.title),
-                      ),
-                    ),
+                          if (!mounted) return;
+
+                          _navigateToDetailScreen(
+                              option.id, option.title, filteredQuestions);
+                        },
+                        child: ListTile(
+                          leading: Icon(_getIconForTitle(option.title)),
+                          title: Text('${option.title} ($count)'),
+                        ),
+                      );
+                    },
                   ),
                 ],
               ),

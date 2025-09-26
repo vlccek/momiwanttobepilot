@@ -1,0 +1,20 @@
+services:
+  momiwillbepilot-frontend:
+    build:
+      context: ./
+#    ports:
+#      - "9000:80"  
+    networks:
+      - app-momiwillbepilot
+  momiwillbepilot-cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: cloudflare_tunnel
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+    networks:
+      - app-momiwillbepilot
+
+
+networks:
+  app-momiwillbepilot:
+    driver: bridge

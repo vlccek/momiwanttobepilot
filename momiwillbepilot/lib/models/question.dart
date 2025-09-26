@@ -1,4 +1,5 @@
 class Question {
+  final String id;
   final String text;
   final List<String> options;
   final int correctAnswerIndex;
@@ -10,6 +11,7 @@ class Question {
   final String explanation;
 
   Question({
+    required this.id,
     required this.text,
     required this.options,
     required this.correctAnswerIndex,
@@ -30,6 +32,7 @@ class Question {
     final int correctAnswerIndex = optionsList.indexOf(spravnaOdpovedText);
 
     return Question(
+      id: json['hashid'],
       text: json['text_otazky'],
       options: optionsList,
       correctAnswerIndex: correctAnswerIndex,

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:momiwillbepilot/components/question_widget.dart';
 import 'package:momiwillbepilot/models/question.dart';
+import 'package:momiwillbepilot/services/question_service.dart';
 
 class DetailScreen extends StatefulWidget {
   final String id;
@@ -53,11 +54,14 @@ class _DetailScreenState extends State<DetailScreen> {
           key: ValueKey(currentQuestion.text),
           question: currentQuestion,
           onAnswered: (isCorrect) {
+            QuestionService.recordAnswer(currentQuestion.id, isCorrect);
             if (isCorrect) {
+              QuestionService.removeIncorrectlyAnsweredQuestionId(currentQuestion.id);
               _moveToNextQuestion();
+            } else {
+              // If incorrect, QuestionWidget will show explanation and its own 'Next Question' button.
+              // The 'Next Question' button will call onNextQuestion.
             }
-            // If incorrect, QuestionWidget will show explanation and its own 'Next Question' button.
-            // The 'Next Question' button will call onNextQuestion.
           },
           onNextQuestion: _moveToNextQuestion,
         ),
