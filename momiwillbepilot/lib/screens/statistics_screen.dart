@@ -1,7 +1,13 @@
+import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
-
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:momiwillbepilot/services/question_service.dart';
 import 'package:community_charts_flutter/community_charts_flutter.dart' as charts;
+import 'package:momiwillbepilot/models/test_result.dart';
+import 'package:momiwillbepilot/services/test_result_service.dart';
+import 'package:momiwillbepilot/services/platform_export_service.dart';
+import 'package:file_picker/file_picker.dart';
 
 class StatisticsScreen extends StatefulWidget {
   const StatisticsScreen({super.key});
@@ -20,6 +26,9 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
   int _answered1PointQuestions = 0;
   int _total3PointQuestions = 0;
   int _answered3PointQuestions = 0;
+  int _total0PointQuestions = 0;
+  int _answered0PointQuestions = 0;
+  List<TestResult> _testResults = [];
 
   @override
   void initState() {
@@ -31,6 +40,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
     try {
       final allQuestions = await QuestionService.loadQuestions();
       final questionStatistics = await QuestionService.getQuestionStatistics();
+      final loadedTestResults = await TestResultService.loadAllTestResults();
 
       final Map<String, int> answeredQuestionsByCategory = {};
       final Map<String, int> totalQuestionsByCategory = {};
@@ -38,15 +48,18 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
       int answered1PointQuestions = 0;
       int total3PointQuestions = 0;
       int answered3PointQuestions = 0;
+      int total0PointQuestions = 0;
+      int answered0PointQuestions = 0;
       int answeredCount = 0;
 
       for (var question in allQuestions) {
         totalQuestionsByCategory[question.category] = (totalQuestionsByCategory[question.category] ?? 0) + 1;
         if (question.points == 1) {
           total1PointQuestions++;
-        }
-        if (question.points == 3) {
+        } else if (question.points == 3) {
           total3PointQuestions++;
+        } else if (question.points == 0) {
+          total0PointQuestions++;
         }
 
         if (questionStatistics.containsKey(question.id)) {
@@ -54,29 +67,92 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
           answeredQuestionsByCategory[question.category] = (answeredQuestionsByCategory[question.category] ?? 0) + 1;
           if (question.points == 1) {
             answered1PointQuestions++;
-          }
-          if (question.points == 3) {
+          } else if (question.points == 3) {
             answered3PointQuestions++;
+          } else if (question.points == 0) {
+            answered0PointQuestions++;
           }
         }
       }
 
-      setState(() {
-        _totalQuestions = allQuestions.length;
-        _answeredQuestions = answeredCount;
-        _answeredQuestionsByCategory = answeredQuestionsByCategory;
-        _totalQuestionsByCategory = totalQuestionsByCategory;
-        _total1PointQuestions = total1PointQuestions;
-        _answered1PointQuestions = answered1PointQuestions;
-        _total3PointQuestions = total3PointQuestions;
-        _answered3PointQuestions = answered3PointQuestions;
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _totalQuestions = allQuestions.length;
+          _answeredQuestions = answeredCount;
+          _answeredQuestionsByCategory = answeredQuestionsByCategory;
+          _totalQuestionsByCategory = totalQuestionsByCategory;
+          _total1PointQuestions = total1PointQuestions;
+          _answered1PointQuestions = answered1PointQuestions;
+          _total3PointQuestions = total3PointQuestions;
+          _answered3PointQuestions = answered3PointQuestions;
+          _total0PointQuestions = total0PointQuestions;
+          _answered0PointQuestions = answered0PointQuestions;
+          _testResults = loadedTestResults;
+          _isLoading = false;
+        });
+      }
     } catch (e) {
-      // Handle error
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _exportResults() async {
+    try {
+      final allResults = await TestResultService.loadAllTestResults();
+      final String jsonString = await TestResultService.exportTestResults(allResults);
+
+      await PlatformExportService.exportJson(jsonString, 'exported_test_results.json');
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Výsledky exportovány.'), behavior: SnackBarBehavior.floating),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Chyba při exportu: $e'), behavior: SnackBarBehavior.floating),
+        );
+      }
+    }
+  }
+
+  Future<void> _importResults() async {
+    try {
+      FilePickerResult? result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['json'],
+      );
+
+      if (result != null) {
+        String jsonString;
+        if (kIsWeb) {
+          jsonString = utf8.decode(result.files.single.bytes!);
+        } else {
+          final file = File(result.files.single.path!);
+          jsonString = await file.readAsString();
+        }
+        
+        if (jsonString.isNotEmpty) {
+          await TestResultService.importTestResults(jsonString);
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Výsledky importovány.'), behavior: SnackBarBehavior.floating),
+            );
+            _loadStatistics();
+          }
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Chyba při importu: $e'), behavior: SnackBarBehavior.floating),
+        );
+      }
     }
   }
 
@@ -90,16 +166,19 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Celkový počet otázek: $_totalQuestions', style: Theme.of(context).textTheme.headlineSmall),
-                  const SizedBox(height: 8),
-                  Text('Počet zodpovězených otázek: $_answeredQuestions', style: Theme.of(context).textTheme.headlineSmall),
-                  const SizedBox(height: 16),
-                  LinearProgressIndicator(
-                    value: _totalQuestions > 0 ? _answeredQuestions / _totalQuestions : 0,
-                    minHeight: 10,
+                  _buildStatCard('Celkový počet otázek', _totalQuestions.toString(), Icons.quiz_outlined),
+                  const SizedBox(height: 12),
+                  _buildStatCard('Zodpovězené otázky', _answeredQuestions.toString(), Icons.check_circle_outline),
+                  const SizedBox(height: 20),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: LinearProgressIndicator(
+                      value: _totalQuestions > 0 ? _answeredQuestions / _totalQuestions : 0,
+                      minHeight: 12,
+                    ),
                   ),
                   const SizedBox(height: 32),
-                  Text('Zodpovězené otázky podle kategorií', style: Theme.of(context).textTheme.headlineSmall),
+                  Text('Zodpovězené otázky podle kategorií', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 16),
                   SizedBox(
                     height: 300,
@@ -108,19 +187,91 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
                         : _buildPieChart(),
                   ),
                   const SizedBox(height: 32),
-                  Text('Průběh podle kategorií', style: Theme.of(context).textTheme.headlineSmall),
+                  Text('Průběh podle kategorií', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 16),
                   _totalQuestionsByCategory.isEmpty
                       ? const Center(child: Text('Žádné otázky k zobrazení.'))
                       : _buildCategoryProgress(),
                   const SizedBox(height: 32),
-                  Text('Průběh podle bodů', style: Theme.of(context).textTheme.headlineSmall),
+                  Text('Průběh podle bodů', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 16),
                   _buildPointProgress(),
+                  const SizedBox(height: 32),
+                  Text('Historie testů', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 16),
+                  _testResults.isEmpty
+                      ? const Center(child: Text('Žádné dokončené testy.'))
+                      : ListView.builder(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: _testResults.length,
+                          itemBuilder: (context, index) {
+                            final result = _testResults[index];
+                            final percentageValue = result.totalPoints > 0 ? (result.score / result.totalPoints * 100) : 0;
+                            final percentage = percentageValue.toStringAsFixed(0);
+                            return Card(
+                              margin: const EdgeInsets.only(bottom: 12.0),
+                              child: ListTile(
+                                leading: CircleAvatar(
+                                  backgroundColor: percentageValue >= 75 ? Colors.green.withOpacity(0.1) : Colors.orange.withOpacity(0.1),
+                                  child: Text('$percentage%', style: TextStyle(fontSize: 12, color: percentageValue >= 75 ? Colors.green : Colors.orange, fontWeight: FontWeight.bold)),
+                                ),
+                                title: Text('Test ${result.timestamp.day}.${result.timestamp.month}. ${result.timestamp.hour}:${result.timestamp.minute.toString().padLeft(2, '0')}'),
+                                subtitle: Text('Skóre: ${result.score}/${result.totalPoints} | Správně: ${result.correctAnswers}'),
+                                trailing: const Icon(Icons.chevron_right),
+                                onTap: () {},
+                              ),
+                            );
+                          },
+                        ),
+                  const SizedBox(height: 32),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: _exportResults,
+                          icon: const Icon(Icons.upload_outlined),
+                          label: const Text('Exportovat'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: _importResults,
+                          icon: const Icon(Icons.download_outlined),
+                          label: const Text('Importovat'),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 40),
                 ],
               ),
             ),
           );
+  }
+
+  Widget _buildStatCard(String title, String value, IconData icon) {
+    return Card(
+      elevation: 0,
+      color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.3),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Row(
+          children: [
+            Icon(icon, color: Theme.of(context).colorScheme.primary),
+            const SizedBox(width: 16),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: Theme.of(context).textTheme.bodySmall),
+                Text(value, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildPieChart() {
@@ -164,11 +315,20 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('$category ($answered/$total)', style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: 4),
-              LinearProgressIndicator(
-                value: total > 0 ? answered / total : 0,
-                minHeight: 8,
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(child: Text(category, style: Theme.of(context).textTheme.titleSmall)),
+                  Text('$answered/$total', style: Theme.of(context).textTheme.bodySmall),
+                ],
+              ),
+              const SizedBox(height: 6),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: LinearProgressIndicator(
+                  value: total > 0 ? answered / total : 0,
+                  minHeight: 8,
+                ),
               ),
             ],
           ),
@@ -178,38 +338,46 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
   }
 
   Widget _buildPointProgress() {
+    final t0 = (_total0PointQuestions as dynamic) ?? 0;
+    final a0 = (_answered0PointQuestions as dynamic) ?? 0;
+    final t1 = (_total1PointQuestions as dynamic) ?? 0;
+    final a1 = (_answered1PointQuestions as dynamic) ?? 0;
+    final t3 = (_total3PointQuestions as dynamic) ?? 0;
+    final a3 = (_answered3PointQuestions as dynamic) ?? 0;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.only(bottom: 16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('1 bodové otázky ($_answered1PointQuestions/$_total1PointQuestions)', style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: 4),
-              LinearProgressIndicator(
-                value: _total1PointQuestions > 0 ? _answered1PointQuestions / _total1PointQuestions : 0,
-                minHeight: 8,
-              ),
-            ],
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.only(bottom: 16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('3 bodové otázky ($_answered3PointQuestions/$_total3PointQuestions)', style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: 4),
-              LinearProgressIndicator(
-                value: _total3PointQuestions > 0 ? _answered3PointQuestions / _total3PointQuestions : 0,
-                minHeight: 8,
-              ),
-            ],
-          ),
-        ),
+        _buildPointItem('0 bodové otázky', a0, t0),
+        _buildPointItem('1 bodové otázky', a1, t1),
+        _buildPointItem('3 bodové otázky', a3, t3),
       ],
+    );
+  }
+
+  Widget _buildPointItem(String label, int answered, int total) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(label, style: Theme.of(context).textTheme.titleSmall),
+              Text('$answered/$total', style: Theme.of(context).textTheme.bodySmall),
+            ],
+          ),
+          const SizedBox(height: 6),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: total > 0 ? answered / total : 0,
+              minHeight: 8,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

@@ -7,7 +7,7 @@ class QuestionService {
   static const _questionStatisticsKey = 'questionStatistics';
 
   static Future<List<Question>> loadQuestions() async {
-    final String response = await rootBundle.loadString('assets/unikatni_otazky_obohatene.json');
+    final String response = await rootBundle.loadString('assets/unique_questions.json');
     final List<dynamic> data = json.decode(response);
     return data.map((json) => Question.fromJson(json)).toList();
   }

@@ -1,62 +1,55 @@
-# Doporučený způsob: Multi-stage build s konkrétní verzí SDK
-
-# --- Fáze 1: Sestavení Flutter aplikace (Builder) ---
+# --- Fáze 1: Sestavení Flutter aplikace ---
 FROM alpine:3.19 AS builder
 
-# Argument pro snadnou změnu verze Flutteru
-ARG FLUTTER_VERSION=3.35.4
+ARG FLUTTER_VERSION=3.41.4
 ENV FLUTTER_URL="https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_${FLUTTER_VERSION}-stable.tar.xz"
 
-# Instalace závislostí potřebných pro stažení, rozbalení a sestavení
-RUN apk update && apk add --no-cache \
-    bash \
-    wget \
-    xz \
-    tar \
-    gcompat \
-    git
+RUN apk update && apk add --no-cache bash wget xz tar gcompat git
 
-# Stažení a rozbalení Flutter SDK do /opt
 RUN wget ${FLUTTER_URL} -q -O flutter.tar.xz && \
-    mkdir -p /opt/flutter 
-
-RUN tar -xf flutter.tar.xz -C /opt/ && \
+    mkdir -p /opt/flutter && \
+    tar -xf flutter.tar.xz -C /opt/ && \
     rm flutter.tar.xz
 
-# Nastavení cesty, aby bylo možné volat 'flutter'
 ENV PATH="/opt/flutter/bin:${PATH}"
-
-
 RUN git config --global --add safe.directory /opt/flutter
-# Povolení webové podpory
 RUN flutter config --enable-web
 
-# Zkopírování závislostí a jejich stažení (optimalizace pro Docker cache)
 WORKDIR /app
 COPY pubspec.yaml pubspec.lock ./
 RUN flutter pub get
-
-# Zkopírování zbytku aplikace a její sestavení
 COPY . .
-RUN flutter build web --release
 
+# Build aplikace
+RUN flutter clean && \
+    flutter build web --release
 
-# --- Fáze 2: Servírování statických souborů (Server) ---
-# Použití velmi malého a efektivního Nginx serveru na Alpine
+# TRIK: Kopírování assetů o úroveň výš, aby byly dostupné na obou cestách
+# (assets/unique_questions.json i assets/assets/unique_questions.json)
+RUN if [ -d "build/web/assets/assets" ]; then \
+    cp -r build/web/assets/assets/* build/web/assets/; \
+    fi
+
+# --- Fáze 2: Servírování s Nginxem ---
 FROM nginx:1.29-alpine
 
-# Odstranění výchozího obsahu Nginx
-RUN rm -rf /usr/share/nginx/html/*
+# Vytvoření standardní funkční konfigurace pro SPA
+RUN echo 'server { \
+    listen 80; \
+    root /usr/share/nginx/html; \
+    index index.html; \
+    location / { \
+        try_files $uri $uri/ /index.html; \
+    } \
+    # Zakázání cache pro JSON a HTML \
+    location ~* \.(html|json)$ { \
+        add_header Cache-Control "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0"; \
+        expires -1; \
+    } \
+}' > /etc/nginx/conf.d/default.conf
 
-# Zkopírování sestavených souborů z 'builder' fáze
+RUN rm -rf /usr/share/nginx/html/*
 COPY --from=builder /app/build/web /usr/share/nginx/html
 
-# (Volitelné, ale doporučené) Přidání vlastní konfigurace Nginx pro Flutter (SPA)
-# Soubor `nginx.conf` musí existovat vedle vašeho Dockerfile.
-# COPY nginx.conf /etc/nginx/conf.d/default.conf
-
-# Server poběží na portu 80 uvnitř kontejneru
 EXPOSE 80
-
-# Příkaz pro spuštění Nginx je již součástí základního obrazu
 CMD ["nginx", "-g", "daemon off;"]

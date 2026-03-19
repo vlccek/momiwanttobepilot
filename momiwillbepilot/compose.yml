@@ -2,8 +2,7 @@ services:
   momiwillbepilot-frontend:
     build:
       context: ./
-#    ports:
-#      - "9000:80"  
+      dockerfile: dockerfile
     networks:
       - app-momiwillbepilot
   momiwillbepilot-cloudflared:
