@@ -213,7 +213,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
                               margin: const EdgeInsets.only(bottom: 12.0),
                               child: ListTile(
                                 leading: CircleAvatar(
-                                  backgroundColor: percentageValue >= 75 ? Colors.green.withOpacity(0.1) : Colors.orange.withOpacity(0.1),
+                                  backgroundColor: percentageValue >= 75 ? Colors.green.withValues(alpha: 0.1) : Colors.orange.withValues(alpha: 0.1),
                                   child: Text('$percentage%', style: TextStyle(fontSize: 12, color: percentageValue >= 75 ? Colors.green : Colors.orange, fontWeight: FontWeight.bold)),
                                 ),
                                 title: Text('Test ${result.timestamp.day}.${result.timestamp.month}. ${result.timestamp.hour}:${result.timestamp.minute.toString().padLeft(2, '0')}'),
@@ -254,7 +254,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
   Widget _buildStatCard(String title, String value, IconData icon) {
     return Card(
       elevation: 0,
-      color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.3),
+      color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Row(

@@ -17,6 +17,7 @@ class _UceniScreenState extends State<UceniScreen> {
   List<Question> _shuffledQuestions = [];
   int _neznameCount = 0;
   int _potizistiCount = 0;
+  int _oznaceneCount = 0;
 
   @override
   void initState() {
@@ -28,10 +29,12 @@ class _UceniScreenState extends State<UceniScreen> {
   Future<void> _calculateDynamicCategoryCounts() async {
     final answeredIds = await QuestionService.getAnsweredQuestionIds();
     final incorrectlyAnsweredIds = await QuestionService.getIncorrectlyAnsweredQuestionIds();
+    final favoriteIds = await QuestionService.getFavoriteQuestionIds();
     if (mounted) {
       setState(() {
         _neznameCount = widget.questions.where((q) => !answeredIds.contains(q.id)).length;
         _potizistiCount = widget.questions.where((q) => incorrectlyAnsweredIds.contains(q.id)).length;
+        _oznaceneCount = widget.questions.where((q) => favoriteIds.contains(q.id)).length;
       });
     }
   }
@@ -80,14 +83,16 @@ class _UceniScreenState extends State<UceniScreen> {
     }
   }
 
-  void _navigateToDetailScreen(String id, String title, List<Question> questions) {
+  void _navigateToDetailScreen(String id, String title, List<Question> questions) async {
     if (questions.isNotEmpty) {
-      Navigator.push(
+      await Navigator.push(
         context,
         MaterialPageRoute(
           builder: (context) => DetailScreen(id: id, title: title, questions: questions),
         ),
       );
+      // Refresh counts when returning from DetailScreen
+      _calculateDynamicCategoryCounts();
     }
   }
 
@@ -165,13 +170,21 @@ class _UceniScreenState extends State<UceniScreen> {
             ),
             ...item.options.map((option) {
               int count = 0;
-              if (option.id == 'nezname-otazky') count = _neznameCount;
-              else if (option.id == 'potizisti') count = _potizistiCount;
-              else if (option.id == 'oznacene') count = 0;
-              else if (option.id == '3-body') count = widget.questions.where((q) => q.points == 3).length;
-              else if (option.id == '1-bod') count = widget.questions.where((q) => q.points == 1).length;
-              else if (option.id == '0-bodu') count = widget.questions.where((q) => q.points == 0).length;
-              else count = widget.questions.where((q) => q.category == option.title).length;
+              if (option.id == 'nezname-otazky') {
+                count = _neznameCount;
+              } else if (option.id == 'potizisti') {
+                count = _potizistiCount;
+              } else if (option.id == 'oznacene') {
+                count = _oznaceneCount;
+              } else if (option.id == '3-body') {
+                count = widget.questions.where((q) => q.points == 3).length;
+              } else if (option.id == '1-bod') {
+                count = widget.questions.where((q) => q.points == 1).length;
+              } else if (option.id == '0-bodu') {
+                count = widget.questions.where((q) => q.points == 0).length;
+              } else {
+                count = widget.questions.where((q) => q.category == option.title).length;
+              }
 
               return Padding(
                 padding: const EdgeInsets.only(bottom: 12.0),
@@ -190,6 +203,11 @@ class _UceniScreenState extends State<UceniScreen> {
                       final incorrectlyAnsweredIds = await QuestionService.getIncorrectlyAnsweredQuestionIds();
                       if (!mounted) return;
                       filteredQuestions = widget.questions.where((q) => incorrectlyAnsweredIds.contains(q.id)).toList();
+                      filteredQuestions.shuffle(Random());
+                    } else if (option.id == 'oznacene') {
+                      final favoriteIds = await QuestionService.getFavoriteQuestionIds();
+                      if (!mounted) return;
+                      filteredQuestions = widget.questions.where((q) => favoriteIds.contains(q.id)).toList();
                       filteredQuestions.shuffle(Random());
                     } else if (option.id == '3-body') {
                       filteredQuestions = _shuffledQuestions.where((q) => q.points == 3).toList();
@@ -223,7 +241,7 @@ class _UceniScreenState extends State<UceniScreen> {
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(20),
-        side: BorderSide(color: Theme.of(context).colorScheme.outlineVariant.withOpacity(0.5)),
+        side: BorderSide(color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.5)),
       ),
       child: InkWell(
         onTap: onTap,
@@ -235,7 +253,7 @@ class _UceniScreenState extends State<UceniScreen> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.primaryContainer.withOpacity(0.4),
+                  color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.4),
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: Icon(icon, color: Theme.of(context).colorScheme.primary),

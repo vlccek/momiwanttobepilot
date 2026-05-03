@@ -4,10 +4,34 @@ import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:momiwillbepilot/services/question_service.dart';
 import 'package:momiwillbepilot/services/platform_export_service.dart';
+import 'package:momiwillbepilot/main.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:package_info_plus/package_info_plus.dart';
 
-class SettingsScreen extends StatelessWidget {
+class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
+
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
+  String _appVersion = 'Načítání...';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadVersion();
+  }
+
+  Future<void> _loadVersion() async {
+    final packageInfo = await PackageInfo.fromPlatform();
+    if (mounted) {
+      setState(() {
+        _appVersion = '${packageInfo.version} (${packageInfo.buildNumber})';
+      });
+    }
+  }
 
   Future<void> _exportStatistics(BuildContext context) async {
     try {
@@ -90,38 +114,67 @@ class SettingsScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Nastavení'),
       ),
-      body: ListView(
-        children: [
-          const _SettingsSectionTitle(title: 'Data a synchronizace'),
-          _SettingsTile(
-            icon: Icons.upload_file_outlined,
-            title: 'Exportovat statistiky',
-            subtitle: 'Uložte si svůj pokrok do souboru',
-            onTap: () => _exportStatistics(context),
-          ),
-          _SettingsTile(
-            icon: Icons.file_download_outlined,
-            title: 'Importovat statistiky',
-            subtitle: 'Nahrajte pokrok ze záložního souboru',
-            onTap: () => _importStatistics(context),
-          ),
-          const Divider(),
-          const _SettingsSectionTitle(title: 'Správa aplikace'),
-          _SettingsTile(
-            icon: Icons.delete_sweep_outlined,
-            title: 'Vymazat statistiky',
-            subtitle: 'Smazat veškerá data o učení',
-            iconColor: Theme.of(context).colorScheme.error,
-            onTap: () => _showClearDialog(context),
-          ),
-          const Divider(),
-          const _SettingsSectionTitle(title: 'O aplikaci'),
-          const ListTile(
-            leading: Icon(Icons.info_outline),
-            title: Text('Momiwillbepilot'),
-            subtitle: Text('Verze 1.0.0 (Beta)'),
-          ),
-        ],
+      body: ListenableBuilder(
+        listenable: settingsService,
+        builder: (context, child) {
+          return ListView(
+            children: [
+              const _SettingsSectionTitle(title: 'Vzhled a chování'),
+              SwitchListTile(
+                title: const Text('Tmavý režim'),
+                subtitle: const Text('Použít tmavé barvy v celé aplikaci'),
+                secondary: Icon(
+                  settingsService.themeMode == ThemeMode.dark 
+                    ? Icons.dark_mode 
+                    : Icons.light_mode_outlined
+                ),
+                value: settingsService.themeMode == ThemeMode.dark,
+                onChanged: (bool value) {
+                  settingsService.setThemeMode(value ? ThemeMode.dark : ThemeMode.light);
+                },
+              ),
+              SwitchListTile(
+                title: const Text('Ruční potvrzení správné odpovědi'),
+                subtitle: const Text('Po správné odpovědi vyčkat na stisknutí tlačítka "Další"'),
+                secondary: const Icon(Icons.touch_app_outlined),
+                value: settingsService.manualNextOnCorrect,
+                onChanged: (bool value) {
+                  settingsService.setManualNextOnCorrect(value);
+                },
+              ),
+              const Divider(),
+              const _SettingsSectionTitle(title: 'Data a synchronizace'),
+              _SettingsTile(
+                icon: Icons.upload_file_outlined,
+                title: 'Exportovat statistiky',
+                subtitle: 'Uložte si svůj pokrok do souboru',
+                onTap: () => _exportStatistics(context),
+              ),
+              _SettingsTile(
+                icon: Icons.file_download_outlined,
+                title: 'Importovat statistiky',
+                subtitle: 'Nahrajte pokrok ze záložního souboru',
+                onTap: () => _importStatistics(context),
+              ),
+              const Divider(),
+              const _SettingsSectionTitle(title: 'Správa aplikace'),
+              _SettingsTile(
+                icon: Icons.delete_sweep_outlined,
+                title: 'Vymazat statistiky',
+                subtitle: 'Smazat veškerá data o učení',
+                iconColor: Theme.of(context).colorScheme.error,
+                onTap: () => _showClearDialog(context),
+              ),
+              const Divider(),
+              const _SettingsSectionTitle(title: 'O aplikaci'),
+              ListTile(
+                leading: const Icon(Icons.info_outline),
+                title: const Text('Momiwillbepilot'),
+                subtitle: Text('Verze $_appVersion'),
+              ),
+            ],
+          );
+        },
       ),
     );
   }

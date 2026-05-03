@@ -1,7 +1,6 @@
-# --- Fáze 1: Sestavení Flutter aplikace ---
 FROM alpine:3.19 AS builder
 
-ARG FLUTTER_VERSION=3.41.4
+ARG FLUTTER_VERSION=3.41.8
 ENV FLUTTER_URL="https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_${FLUTTER_VERSION}-stable.tar.xz"
 
 RUN apk update && apk add --no-cache bash wget xz tar gcompat git
@@ -40,8 +39,12 @@ RUN echo 'server { \
     index index.html; \
     location / { \
         try_files $uri $uri/ /index.html; \
+        # Zakázání cache pro hlavní soubory aplikace \
+        if ($uri ~* \.(html|json|js)$) { \
+            add_header Cache-Control "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0"; \
+        } \
     } \
-    # Zakázání cache pro JSON a HTML \
+    # Specifické zakázání cache pro JSON a HTML (pojistka) \
     location ~* \.(html|json)$ { \
         add_header Cache-Control "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0"; \
         expires -1; \

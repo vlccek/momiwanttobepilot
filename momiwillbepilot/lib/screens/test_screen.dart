@@ -6,6 +6,7 @@ import 'package:momiwillbepilot/screens/test_results_screen.dart';
 import 'package:momiwillbepilot/models/test_result.dart';
 import 'package:momiwillbepilot/services/test_result_service.dart';
 import 'package:momiwillbepilot/components/learning_question_widget.dart';
+import 'package:momiwillbepilot/main.dart';
 
 class TestScreen extends StatefulWidget {
   const TestScreen({super.key, required this.questions});
@@ -206,8 +207,11 @@ class _TestScreenState extends State<TestScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-            '${_currentPage + 1}/${_testQuestions.length} - ${(_timeLeftInSeconds ~/ 60)}:${(_timeLeftInSeconds % 60).toString().padLeft(2, '0')}'),
+        title: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+              '${_currentPage + 1}/${_testQuestions.length} - ${(_timeLeftInSeconds ~/ 60)}:${(_timeLeftInSeconds % 60).toString().padLeft(2, '0')}'),
+        ),
         actions: [
           TextButton(
             onPressed: () {
@@ -230,29 +234,31 @@ class _TestScreenState extends State<TestScreen> {
           )
         ],
       ),
-      body: Column(
-        children: [
-          Expanded(
-            child: PageView.builder(
-              controller: _pageController,
-              itemCount: _testQuestions.length,
-              onPageChanged: (page) => setState(() => _currentPage = page),
-              itemBuilder: (context, index) {
-                final question = _testQuestions[index];
-                return SingleChildScrollView(
-                  padding: const EdgeInsets.all(16),
-                  child: TestQuestionWidget(
-                    key: ValueKey(question.id),
-                    question: question,
-                    initialAnswerIndex: _userAnswers[question.id],
-                    onAnswered: (selectedIndex) => _onAnswered(question, selectedIndex),
-                  ),
-                );
-              },
+      body: SelectionArea(
+        child: Column(
+          children: [
+            Expanded(
+              child: PageView.builder(
+                controller: _pageController,
+                itemCount: _testQuestions.length,
+                onPageChanged: (page) => setState(() => _currentPage = page),
+                itemBuilder: (context, index) {
+                  final question = _testQuestions[index];
+                  return SingleChildScrollView(
+                    padding: const EdgeInsets.all(16),
+                    child: TestQuestionWidget(
+                      key: ValueKey(question.id),
+                      question: question,
+                      initialAnswerIndex: _userAnswers[question.id],
+                      onAnswered: (selectedIndex) => _onAnswered(question, selectedIndex),
+                    ),
+                  );
+                },
+              ),
             ),
-          ),
-          _buildTestNavigation(),
-        ],
+            _buildTestNavigation(),
+          ],
+        ),
       ),
     );
   }
@@ -260,10 +266,10 @@ class _TestScreenState extends State<TestScreen> {
   Widget _buildNewTestCard() {
     return Card(
       elevation: 0,
-      color: Theme.of(context).colorScheme.primaryContainer.withOpacity(0.3),
+      color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.3),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(24),
-        side: BorderSide(color: Theme.of(context).colorScheme.primary.withOpacity(0.2)),
+        side: BorderSide(color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.2)),
       ),
       child: Padding(
         padding: const EdgeInsets.all(24.0),
@@ -309,7 +315,7 @@ class _TestScreenState extends State<TestScreen> {
           width: 50,
           height: 50,
           decoration: BoxDecoration(
-            color: (isPassed ? Colors.green : Colors.orange).withOpacity(0.1),
+            color: (isPassed ? Colors.green : Colors.orange).withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(12),
           ),
           alignment: Alignment.center,
@@ -351,7 +357,7 @@ class _TestScreenState extends State<TestScreen> {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, -5))],
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, -5))],
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -387,34 +393,185 @@ class _TestScreenState extends State<TestScreen> {
   }
 }
 
-class TestReviewScreen extends StatelessWidget {
+class TestReviewScreen extends StatefulWidget {
   final TestResult result;
   const TestReviewScreen({super.key, required this.result});
 
   @override
+  State<TestReviewScreen> createState() => _TestReviewScreenState();
+}
+
+class _TestReviewScreenState extends State<TestReviewScreen> {
+  String _filter = 'all'; // all, correct, incorrect
+  String _pointFilter = 'all'; // all, 3, 1
+  String _categoryFilter = 'all';
+
+  @override
   Widget build(BuildContext context) {
+    final percentage = (widget.result.score / 94 * 100);
+    final isPassed = widget.result.score >= 75;
+
+    final categories = ['all', ...widget.result.questions.map((q) => q.category).toSet()];
+
+    List<Question> filteredQuestions = widget.result.questions.where((q) {
+      final userAnswerIndex = widget.result.userAnswers[q.id];
+      final answered = userAnswerIndex != null;
+      final correct = answered && userAnswerIndex == q.correctAnswerIndex;
+
+      bool passesFilter = false;
+      if (_filter == 'all') {
+        passesFilter = true;
+      } else if (_filter == 'correct') {
+        passesFilter = answered && correct;
+      } else if (_filter == 'incorrect') {
+        passesFilter = answered && !correct;
+      } else if (_filter == 'unanswered') {
+        passesFilter = !answered;
+      }
+
+      final passesPointFilter =
+          (_pointFilter == 'all') || (_pointFilter == q.points.toString());
+      
+      final passesCategoryFilter = (_categoryFilter == 'all') || (_categoryFilter == q.category);
+
+      return passesFilter && passesPointFilter && passesCategoryFilter;
+    }).toList();
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Prohlídka testu'),
-      ),
-      body: SelectionArea(
-        child: ListView.builder(
-          padding: const EdgeInsets.all(16),
-          itemCount: result.questions.length,
-          itemBuilder: (context, index) {
-            final question = result.questions[index];
-            final userAnswerIndex = result.userAnswers[question.id];
-            
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 24.0),
-              child: LearningQuestionWidget(
-                question: question,
-                interactive: false,
-                initialAnswerIndex: userAnswerIndex,
-              ),
-            );
-          },
+        title: const FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text('Prohlídka testu'),
         ),
+      ),
+      body: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            width: double.infinity,
+            color: isPassed ? Colors.green.withValues(alpha: 0.1) : Colors.red.withValues(alpha: 0.1),
+            child: Column(
+              children: [
+                Text(
+                  isPassed ? 'PROSPĚL(A)' : 'NEPROSPĚL(A)',
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    color: isPassed ? Colors.green : Colors.red,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Text(
+                  'Skóre: ${widget.result.score} / 94 (${percentage.toStringAsFixed(1)}%)',
+                ),
+              ],
+            ),
+          ),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Row(
+              children: [
+                FilterChip(
+                  label: const Text('Všechny body'),
+                  selected: _pointFilter == 'all',
+                  onSelected: (selected) {
+                    if (selected) setState(() => _pointFilter = 'all');
+                  },
+                ),
+                const SizedBox(width: 8),
+                FilterChip(
+                  label: const Text('3 body'),
+                  selected: _pointFilter == '3',
+                  onSelected: (selected) {
+                    if (selected) setState(() => _pointFilter = '3');
+                  },
+                ),
+                const SizedBox(width: 8),
+                FilterChip(
+                  label: const Text('1 bod'),
+                  selected: _pointFilter == '1',
+                  onSelected: (selected) {
+                    if (selected) setState(() => _pointFilter = '1');
+                  },
+                ),
+              ],
+            ),
+          ),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              children: [
+                FilterChip(
+                  label: const Text('Vše'),
+                  selected: _filter == 'all',
+                  onSelected: (selected) {
+                    if (selected) setState(() => _filter = 'all');
+                  },
+                ),
+                const SizedBox(width: 8),
+                FilterChip(
+                  label: const Text('Správně'),
+                  selected: _filter == 'correct',
+                  onSelected: (selected) {
+                    if (selected) setState(() => _filter = 'correct');
+                  },
+                ),
+                const SizedBox(width: 8),
+                FilterChip(
+                  label: const Text('Špatně'),
+                  selected: _filter == 'incorrect',
+                  onSelected: (selected) {
+                    if (selected) setState(() => _filter = 'incorrect');
+                  },
+                ),
+                const SizedBox(width: 8),
+                FilterChip(
+                  label: const Text('Nezodpovězeno'),
+                  selected: _filter == 'unanswered',
+                  onSelected: (selected) {
+                    if (selected) setState(() => _filter = 'unanswered');
+                  },
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            child: DropdownButton<String>(
+              isExpanded: true,
+              value: _categoryFilter,
+              items: categories.map((cat) => DropdownMenuItem(
+                value: cat,
+                child: Text(cat == 'all' ? 'Všechny kategorie' : cat),
+              )).toList(),
+              onChanged: (val) {
+                if (val != null) setState(() => _categoryFilter = val);
+              },
+            ),
+          ),
+          Expanded(
+            child: SelectionArea(
+              child: ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: filteredQuestions.length,
+                itemBuilder: (context, index) {
+                  final question = filteredQuestions[index];
+                  final userAnswerIndex = widget.result.userAnswers[question.id];
+                  
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 24.0),
+                    child: LearningQuestionWidget(
+                      question: question,
+                      interactive: false,
+                      initialAnswerIndex: userAnswerIndex,
+                      manualNextOnCorrect: settingsService.manualNextOnCorrect,
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

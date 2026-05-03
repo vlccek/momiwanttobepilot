@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class QuestionService {
   static const _questionStatisticsKey = 'questionStatistics';
+  static const _favoriteQuestionsKey = 'favoriteQuestions';
 
   static Future<List<Question>> loadQuestions() async {
     final String response = await rootBundle.loadString('assets/unique_questions.json');
@@ -113,5 +114,26 @@ class QuestionService {
       }
     }
     await _saveQuestionStatistics(importedStats);
+  }
+
+  static Future<List<String>> getFavoriteQuestionIds() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getStringList(_favoriteQuestionsKey) ?? [];
+  }
+
+  static Future<void> toggleFavorite(String questionId) async {
+    final prefs = await SharedPreferences.getInstance();
+    final favorites = prefs.getStringList(_favoriteQuestionsKey) ?? [];
+    if (favorites.contains(questionId)) {
+      favorites.remove(questionId);
+    } else {
+      favorites.add(questionId);
+    }
+    await prefs.setStringList(_favoriteQuestionsKey, favorites);
+  }
+
+  static Future<bool> isFavorite(String questionId) async {
+    final favorites = await getFavoriteQuestionIds();
+    return favorites.contains(questionId);
   }
 }

@@ -2,7 +2,7 @@ name: momiwillbepilot
 description: "A new Flutter project."
 publish_to: 'none'
 
-version: 1.0.0+1
+version: 1.2.0+3
 
 environment:
   sdk: ^3.8.1
@@ -19,6 +19,8 @@ dependencies:
   universal_html: ^2.2.4
   fl_chart: ^1.1.0
   path_provider: ^2.1.3
+  confetti: ^0.8.0
+  package_info_plus: ^9.0.1
 
 dev_dependencies:
   flutter_test:

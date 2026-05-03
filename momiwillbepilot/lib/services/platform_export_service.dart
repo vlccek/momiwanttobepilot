@@ -2,7 +2,6 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'dart:io';
-import 'dart:convert';
 import 'platform_export_stub.dart' if (dart.library.js_interop) 'platform_export_web.dart' as web_helper;
 
 class PlatformExportService {

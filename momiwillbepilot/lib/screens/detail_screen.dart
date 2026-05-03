@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:momiwillbepilot/components/learning_question_widget.dart';
 import 'package:momiwillbepilot/models/question.dart';
 import 'package:momiwillbepilot/services/question_service.dart';
+import 'package:momiwillbepilot/main.dart';
 
 class DetailScreen extends StatefulWidget {
   final String id;
@@ -30,6 +31,7 @@ class _DetailScreenState extends State<DetailScreen> {
   }
 
   void _moveToNextQuestion() {
+    if (!mounted) return;
     setState(() {
       if (_currentQuestionIndex < _allQuestions.length - 1) {
         _currentQuestionIndex++;
@@ -48,24 +50,26 @@ class _DetailScreenState extends State<DetailScreen> {
       appBar: AppBar(
         title: Text(widget.title),
       ),
-      body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: LearningQuestionWidget(
-            key: ValueKey(currentQuestion.text),
-            question: currentQuestion,
-            onAnswered: (selectedIndex) {
-              final isCorrect = selectedIndex == currentQuestion.correctAnswerIndex;
-              QuestionService.recordAnswer(currentQuestion.id, isCorrect);
-              if (isCorrect) {
-                QuestionService.removeIncorrectlyAnsweredQuestionId(currentQuestion.id);
-                _moveToNextQuestion();
-              } else {
-                // If incorrect, QuestionWidget will show explanation and its own \'Next Question\' button.
-                // The \'Next Question\' button will call onNextQuestion.
-              }
-            },
-            onNextQuestion: _moveToNextQuestion,
+      body: SelectionArea(
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: LearningQuestionWidget(
+              key: ValueKey(currentQuestion.text),
+              question: currentQuestion,
+              manualNextOnCorrect: settingsService.manualNextOnCorrect,
+              onAnswered: (selectedIndex) {
+                final isCorrect = selectedIndex == currentQuestion.correctAnswerIndex;
+                QuestionService.recordAnswer(currentQuestion.id, isCorrect);
+                if (isCorrect) {
+                  QuestionService.removeIncorrectlyAnsweredQuestionId(currentQuestion.id);
+                  if (!settingsService.manualNextOnCorrect) {
+                    _moveToNextQuestion();
+                  }
+                }
+              },
+              onNextQuestion: _moveToNextQuestion,
+            ),
           ),
         ),
       ),

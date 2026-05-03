@@ -3,6 +3,7 @@ services:
     build:
       context: ./
       dockerfile: dockerfile
+    restart: unless-stopped
     networks:
       - app-momiwillbepilot
   momiwillbepilot-cloudflared:
